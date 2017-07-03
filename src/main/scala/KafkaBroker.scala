@@ -1,5 +1,4 @@
 import java.util.Properties
-
 import scala.io._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
@@ -61,13 +60,15 @@ object KafkaBroker extends App {
   } // end of startBroker
 
   /**
+    * Queries plume pollution API for a particular 'location' (lat, long) in an interval defined by 'sleepTime'
+    * and creates a KafkaProducer to ingest content
+    *
     * @param brokers Broker information in the format 'localhost:9092'
     *                or "broker1:port,broker2:port"
-    * @param topic Broker information in the format 'localhost:9092'
-    * @param location Broker information in the format 'localhost:9092'
-    * @param sleepTime Broker information in the format 'localhost:9092'
+    * @param topic Topic to publish message to
+    * @param location Latitude and Longitude to query pollution
+    * @param sleepTime Time interval between queries to plume API
     *
-    * @return KafkaProducer[String, String]
     */
 
 
