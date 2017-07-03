@@ -8,7 +8,7 @@ So far:
 
 
 
-## Kafka producer and consumer in Scala
+## Kafka producer in Scala
 
 Start Zookeeper.
 If you have installed zookeeper, start it, or run the command:     
@@ -31,6 +31,8 @@ Once packaged in a JAR you can run the producer with the following arguments:
 where:
 + __title:__ plume_pollution
 + __broker:__ localhost:9092
-+ __longitude:__ 48.85
-+ __latitude:__ 2.294
++ __latitude:__ 48.85
++ __longitude:__ 2.294
 + __sleepTime:__ 1000
+
+> For additional information about Kafka, Plume API or Plume token check the [WIKI](https://github.com/zipfian/cartesianproduct2/wiki)
