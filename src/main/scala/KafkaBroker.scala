@@ -2,11 +2,15 @@ import org.apache.spark.SparkConf
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.Seconds
 import java.util.{Date, Properties}
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, RecordMetadata}
 import org.apache.spark.streaming.kafka.KafkaUtils
+
 import scala.io._
 import org.json4s._
 import org.json4s.native.JsonMethods._
+
+import scala.concurrent.Future
 //import org.json4s.jackson.JsonMethods._
 // https://forums.databricks.com/questions/6928/cannot-parse-json-using-json4s-on-databricks.html
 
@@ -23,29 +27,23 @@ object KafkaBroker extends App {
 
   override def main(args: Array[String]): Unit = {
 
-    // access plume API
+    // access plume token
     lazy val token:Option[String] = sys.env.get("PLUMETOKEN") orElse {
       println("No token found. Check how to set it up at https://github.com/zipfian/cartesianproduct2/wiki/TOKEN")
       None
     }
 
-    // Spark Streaming is now connected to Apache Kafka and consumes messages every 10 seconds
-//    val conf = new SparkConf().setMaster("local[*]").setAppName("KafkaProducer")
-//    val ssc = new StreamingContext(conf, Seconds(10))
+    // parameters
+    val topic = args(0) // plume_pollution
+    val brokers = args(1) // localhost:9092 - "broker1:port,broker2:port"
+    val lat = args(2).toDouble // latitude - test value: 48.85
+    val lon = args(3).toDouble // longitude - test value: 2.294
+    val sleepTime = args(4).toInt // 1000 - time between queries to API
 
-//    val events = args(0).toInt
-    val topic = args(0) // plume
-    val brokers = args(1) // "broker1:port,broker2:port"
-    val sleepTime = args(2) // time between queries to API
-    val lat = 48.85
-    val lon = 2.294
-
-    val rnd = new Random()
-
+    // Kafka Broker properties
     val props = new Properties()
     props.put("bootstrap.servers", brokers)
-//    props.put("metadata.broker.list", "192.168.146.132:9092, 192.168.146.132:9093, 192.168.146.132:9094");
-    props.put("client.id", "ScalaProducer") // 0, 1, 2 in tutorial
+    props.put("client.id", "ScalaKafkaProducer")
     props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
     props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
     props.put("acks", "all")
@@ -54,44 +52,22 @@ object KafkaBroker extends App {
 //    props.put("linger.ms", new Integer(1))
 //    props.put("buffer.memory", new Integer(133554432))
 
-    // create producer with 'props' properties
-    val producer = new KafkaProducer[String, String](props)
+    // query API on an infinity loop with 'sleepTime' intervals
 
+    // TODO: implement ProducerCallback()
 
-//    Sample code to publish to producer
-//    val t = System.currentTimeMillis()
-//
-//    for (nEvents <- Range(0, events)) {
-//      val runtime = new Date().getTime()
-//      val ip = "192.168.2." + rnd.nextInt(255)
-//      val msg = runtime + "," + nEvents + ",www.example.com," + ip
-//      val data = new ProducerRecord[String, String](topic, ip, msg)
-//
-//      //async
-//      //producer.send(data, (m,e) => {})
-//      //sync
-//      producer.send(data)
-//
-//    }
-
-    // case class for pollution data
-//    case class LabeledContent(label: Double, content: Array[String])
-
-    // name of
-//    val kafkaStream = KafkaUtils.createStream(ssc, "localhost:2181", "spark-streaming-consumer-group", Map("plume_pollution" -> 5))
-
-//    kafkaStream.print()
-
-    // query API on an infinity loop
     while (true){
+
+      // create producer with 'props' properties
+      val producer = new KafkaProducer[String, String](props)
 
       // query web API - response will be a String
       val response = Source.fromURL(
-        "https://api.plume.io/1.0/pollution/forecast?token="+ token +"&lat="+ lat +"&lon="+ lon
+        "https://api.plume.io/1.0/pollution/forecast?token="+ token.get +"&lat="+ lat +"&lon="+ lon
       ).mkString
 
 
-      // process String as JSON
+      // decided to keep the response as text but below is the code to further process the String as JSON
 //      val jsonResponse = parse(response)
 
       // Go into the JObject instance and bind the list of fields to the constant fields
@@ -106,19 +82,25 @@ object KafkaBroker extends App {
       //    val JDouble(longitude) = jsonResponse \ "longitude"
       //      longitude: Double = 2.294
 
-
       val producerRecord = new ProducerRecord[String, String](topic, response)
-      val recordMetadata = producer.send(producerRecord);
+      val recordMetadata = producer.send(producerRecord)
+
+      val meta = recordMetadata.get() // I could use this to write tests
+      val msgLog =
+        s"""
+           |offset    = ${meta.offset()}
+           |partition = ${meta.partition()}
+           |topic     = ${meta.topic()}
+          """.stripMargin
+      println(msgLog)
+
+      producer.close()
 
       // pause in between queries - this should be an argument
-      Thread.sleep(5000)
+      Thread.sleep(sleepTime)
 
-    }
+    } // end of infinity loop
 
-    producer.close() // this might  not run but placeholder in case loop changes
+  } // end of main
 
-//    ssc.start
-
-  }
-
-}
+} // end of KafkaBroker object
