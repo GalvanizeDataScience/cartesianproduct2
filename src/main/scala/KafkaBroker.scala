@@ -1,4 +1,5 @@
 import java.util.Properties
+
 import scala.io._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
@@ -10,13 +11,10 @@ import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 object KafkaBroker extends App {
 
-  override def main(args: Array[String]): Unit = {
 
-    // access plume token https://github.com/zipfian/cartesianproduct2/wiki/TOKEN
-    lazy val token:Option[String] = sys.env.get("PLUMETOKEN") orElse {
-      println("No token found. Check how to set it up at https://github.com/zipfian/cartesianproduct2/wiki/TOKEN")
-      None
-    }
+  case class Coordinates(lat: Double, lon: Double)
+
+  override def main(args: Array[String]): Unit = {
 
     // parameters
     val topic = args(0) // plume_pollution
@@ -24,6 +22,25 @@ object KafkaBroker extends App {
     val lat = args(2).toDouble // latitude - test value: 48.85
     val lon = args(3).toDouble // longitude - test value: 2.294
     val sleepTime = args(4).toInt // 1000 - time between queries to API
+
+    // user 'lat' and 'lon' to create Coordinates object
+    val location = Coordinates(lat, lon)
+
+    startIngestion(brokers, topic, location, sleepTime)
+
+
+  } // end of main
+
+  /**
+    * Helper function to create a KafkaProducer using brokers ip and port
+    *
+    * @param brokers Broker information in the format 'localhost:9092'
+    *                or "broker1:port,broker2:port"
+    *
+    * @return KafkaProducer[String, String]
+    */
+
+  def startBroker(brokers:String): KafkaProducer[String, String] = {
 
     // Kafka Broker properties
     val props = new Properties()
@@ -33,21 +50,43 @@ object KafkaBroker extends App {
     props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
     props.put("acks", "all")
     props.put("retries", new Integer(1))
-//    props.put("batch.size", new Integer(16384))
-//    props.put("linger.ms", new Integer(1))
-//    props.put("buffer.memory", new Integer(133554432))
+    //    props.put("batch.size", new Integer(16384))
+    //    props.put("linger.ms", new Integer(1))
+    //    props.put("buffer.memory", new Integer(133554432))
 
     // TODO: implement ProducerCallback()
 
-    // query API on an infinity loop with 'sleepTime' intervals
+    new KafkaProducer[String, String](props)
+
+  } // end of startBroker
+
+  /**
+    * @param brokers Broker information in the format 'localhost:9092'
+    *                or "broker1:port,broker2:port"
+    * @param topic Broker information in the format 'localhost:9092'
+    * @param location Broker information in the format 'localhost:9092'
+    * @param sleepTime Broker information in the format 'localhost:9092'
+    *
+    * @return KafkaProducer[String, String]
+    */
+
+
+  def startIngestion(brokers:String, topic:String, location: Coordinates, sleepTime: Int) = {
+
+    // access plume token https://github.com/zipfian/cartesianproduct2/wiki/TOKEN
+    lazy val token:Option[String] = sys.env.get("PLUMETOKEN") orElse {
+      println("No token found. Check how to set it up at https://github.com/zipfian/cartesianproduct2/wiki/TOKEN")
+      None
+    }
+
     while (true){
 
       // create producer with 'props' properties
-      val producer = new KafkaProducer[String, String](props)
+      val producer = startBroker(brokers)
 
       // query web API - response will be a String
       val response = Source.fromURL(
-        "https://api.plume.io/1.0/pollution/forecast?token="+ token.get +"&lat="+ lat +"&lon="+ lon
+        "https://api.plume.io/1.0/pollution/forecast?token="+ token.get +"&lat="+ location.lat +"&lon="+ location.lon
       ).mkString
 
       val producerRecord = new ProducerRecord[String, String](topic, response)
@@ -69,6 +108,7 @@ object KafkaBroker extends App {
 
     } // end of infinity loop
 
-  } // end of main
+
+  } // end of startIngestion
 
 } // end of KafkaBroker object
