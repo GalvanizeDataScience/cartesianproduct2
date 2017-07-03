@@ -30,13 +30,18 @@ object KafkaBroker extends App {
     val events = args(0).toInt
     val topic = args(1)
     val brokers = args(2) // "broker1:port,broker2:port"
-  val rnd = new Random()
+    val rnd = new Random()
 
     val props = new Properties()
     props.put("bootstrap.servers", brokers)
     props.put("client.id", "ScalaProducer") // 0, 1, 2 in tutorial
     props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
     props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+    props.put("acks", "all")
+    props.put("retries", new Integer(1))
+//    props.put("batch.size", new Integer(16384))
+//    props.put("linger.ms", new Integer(1))
+//    props.put("buffer.memory", new Integer(133554432))
 
     val producer = new KafkaProducer[String, String](props)
 
