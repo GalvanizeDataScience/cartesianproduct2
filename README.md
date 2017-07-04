@@ -20,6 +20,11 @@ Start Kafka with default configuration
 Create a Topic - **'plume_pollution'**        
 `> bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 10 --topic plume_pollution`
 
+To show all content in a topic (and to check the Producer is working), have the command line consumer running:
+` bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic plume_pollution --
+from-beginning`
+
+
 Package project       
 `sbt assembly`
 It will package compiled classes and its dependencies into a jar.
@@ -36,3 +41,11 @@ where:
 + __sleepTime:__ 1000
 
 > For additional information about Kafka, Plume API or Plume token check the [WIKI](https://github.com/zipfian/cartesianproduct2/wiki)
+
+Output
+If all is working, you should see the following output:
+![IntelliJ Producer Output ](https://raw.githubusercontent.com/gth158a/experience/master/kafka/images/intellij_producer_output.png)
+![Terminal Kafka Consumer Output ](https://raw.githubusercontent.com/gth158a/experience/master/kafka/images/kafka_consumer_output.png)
+
+# Additional Kafka commands
+List topics
