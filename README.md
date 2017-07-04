@@ -21,8 +21,7 @@ Create a Topic - **'plume_pollution'**
 `> bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 10 --topic plume_pollution`
 
 To show all content in a topic (and to check the Producer is working), have the command line consumer running:
-` bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic plume_pollution --
-from-beginning`
+` bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic plume_pollution --from-beginning`
 
 
 Package project       
