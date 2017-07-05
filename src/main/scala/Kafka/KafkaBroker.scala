@@ -1,6 +1,10 @@
+package Kafka
+
 import java.util.Properties
-import scala.io._
+
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+
+import scala.io._
 
 /**
   * Kafka broker to ingest data from plume.io
