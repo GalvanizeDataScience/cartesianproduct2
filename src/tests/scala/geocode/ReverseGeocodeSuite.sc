@@ -13,9 +13,10 @@ import org.scalatest.Assertions._
 
 implicit val formats = DefaultFormats // Brings in default date formats etc.
 
-KafkaParser
-PlumeParser
-GoogleMapsRequester
+// Functions to test
+//KafkaParser
+//PlumeParser
+//GoogleMapsRequester
 
 
 @RunWith(classOf[JUnitRunner])
