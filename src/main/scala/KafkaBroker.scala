@@ -1,5 +1,3 @@
-package Kafka
-
 import java.util.Properties
 
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
@@ -16,7 +14,6 @@ object KafkaBroker extends App {
 
 
   case class Coordinates(lat: Double, lon: Double)
-jsdlk
   override def main(args: Array[String]): Unit = {
 
     // parameters
