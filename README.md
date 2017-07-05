@@ -12,7 +12,7 @@ So far:
 
 Start Zookeeper.
 If you have installed zookeeper, start it, or run the command:     
-`bin/zookeeper-server-start.sh config/zookeeper.properties`
+`> bin/zookeeper-server-start.sh config/zookeeper.properties`
 
 Start Kafka with default configuration               
 `> bin/kafka-server-start.sh config/server.properties`
