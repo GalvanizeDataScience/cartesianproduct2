@@ -16,7 +16,7 @@ object KafkaBroker extends App {
 
 
   case class Coordinates(lat: Double, lon: Double)
-
+jsdlk
   override def main(args: Array[String]): Unit = {
 
     // parameters
