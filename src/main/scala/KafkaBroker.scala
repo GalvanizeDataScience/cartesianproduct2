@@ -1,6 +1,8 @@
 import java.util.Properties
 import scala.io._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import akka.actor._
+//import akka.routing.BalancingPool
 
 /**
   * Kafka broker to ingest data from plume.io
@@ -12,20 +14,73 @@ object KafkaBroker extends App {
 
 
   case class Coordinates(lat: Double, lon: Double)
+  case class Ingestion_parameters(brokers: String, topic: String, lat: Double, lon: Double, sleepTime: Int)
+
+  class PlumeApiActor extends Actor {
+    def receive = {
+      case Ingestion_parameters(brokers, topic, lat, lon, sleepTime) => {
+        println(s"lat = $lat and lon = $lon")
+
+        // user 'lat' and 'lon' to create Coordinates object
+        val location = Coordinates(lat, lon)
+        startIngestion(brokers, topic, location, sleepTime)
+      }
+      // TODO: add a case for returning the name of the city associated with the lat/lon
+      case _ => println("Not a geocoordinate")
+    }
+  }
 
   override def main(args: Array[String]): Unit = {
 
     // parameters
     val topic = args(0) // plume_pollution
     val brokers = args(1) // localhost:9092 - "broker1:port,broker2:port"
-    val lat = args(2).toDouble // latitude - test value: 48.85
-    val lon = args(3).toDouble // longitude - test value: 2.294
-    val sleepTime = args(4).toInt // 1000 - time between queries to API
+    //val lat = args(2).toDouble // latitude - test value: 48.85
+    //val lon = args(3).toDouble // longitude - test value: 2.294
+    val sleepTime = args(2).toInt // 1000 - time between queries to API
 
-    // user 'lat' and 'lon' to create Coordinates object
-    val location = Coordinates(lat, lon)
+    //gets lat and lon from a txt file; specific formatting for coords = lines.map(...) will depend on structure of
+    //the coordinates in the input file
+    val testfile = "/Users/lukmaanbawazer/gU4/cartesianproduct2/test_latlons.txt" //source file of geolocations
+    val source = Source.fromFile(testfile)
+    val lines = source.getLines
+    val rm = "()".toSet
 
-    startIngestion(brokers, topic, location, sleepTime)
+    //if line strings are in the form (1.0,2.0):
+    //val coords = lines.map(l => l.split(",")).map(a => (a(0).filterNot(rm).toDouble,a(1).filterNot(rm).toDouble))
+
+    //if line strings are in the form (city,(1.0,2.0)), and want to keep this but as (String, (Double,Double))
+    val coords = lines.map(l => l.split(",")).map(a =>(a(0).filterNot(rm),(a(1).filterNot(rm).toDouble,a(2).filterNot(rm).toDouble)))
+    println(s"these are the coords: $coords")
+
+    println("just before ActorSystem")
+    val system = ActorSystem("PlumeActorSystem")
+
+    println("just before actor")
+    //test a single actor
+    val actor = system.actorOf(Props[PlumeApiActor], "PlumeActorPool")
+
+    //later, for use on the Google Compute Engine, define router info in a config file
+    //val router = system.actorOf(BalancingPool(4).props(Props[PlumeApiActor]), "PlumeActorPool")
+
+
+    val length = coords.length
+    println(s"this is the length of the coords iterator: $length")
+    val length2 = length.toInt
+    println(s"this is the length of the coords iterator, after .toInt: $length2")
+    for (i <- 0 until coords.length) {
+      val loc = coords.next
+      println(s"this is the location: $loc")
+      val lat = loc._2._1
+      val lon = loc._2._2
+
+      val ingestion_params = (brokers, topic, lat, lon, sleepTime)
+      actor ! ingestion_params//send the router a message, which it will distribute to a sub-actor
+    }
+
+
+
+
 
 
   } // end of main
