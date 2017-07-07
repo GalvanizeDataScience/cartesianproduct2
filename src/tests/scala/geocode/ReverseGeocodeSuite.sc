@@ -36,26 +36,26 @@ class ReverseGeocodeSuite extends FunSuite {
     }
 
   }
-
-  test("Kafka parser returns a sequence of strings") {
-    new TestGeo{
-      val result = KafkaParser(plumeLogTest).getClass.getName
-      assert(result).getClass.getName = "scala.collection.Seq$")
-//      assert(result.getClass.getName = "scala.collection.immutable.$colon$colon")
-      assert(result(0).getClass.getName = "java.lang.String")
-      
-    }
-  }
-
-  test("Plume Parser returns a sequence of CassandraRows") {
-    new TestGeo{
-      val result = Geocoder(plumeSeqTest)
-      assert(result.getClass.getName = "scala.collection.Seq$")
-//      assert(result.getClass.getName = "scala.collection.immutable.$colon$colon")
-      assert(result(0).getClass.getName = "CassandraRow")
-    }     
-  }
-
-  test("G")
+//
+//  test("Kafka parser returns a sequence of strings") {
+//    new TestGeo{
+//      val result = KafkaParser(plumeLogTest).getClass.getName
+//      assert(result).getClass.getName = "scala.collection.Seq$")
+////      assert(result.getClass.getName = "scala.collection.immutable.$colon$colon")
+//      assert(result(0).getClass.getName = "java.lang.String")
+//
+//    }
+//  }
+//
+//  test("Plume Parser returns a sequence of CassandraRows") {
+//    new TestGeo{
+//      val result = Geocoder(plumeSeqTest)
+//      assert(result.getClass.getName = "scala.collection.Seq$")
+////      assert(result.getClass.getName = "scala.collection.immutable.$colon$colon")
+//      assert(result(0).getClass.getName = "CassandraRow")
+//    }
+//  }
+//
+//  test("G")
 
 }
