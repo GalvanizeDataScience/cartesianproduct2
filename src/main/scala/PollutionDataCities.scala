@@ -16,6 +16,22 @@ class PollutionDataCities {
 
   }
 
+  /**
+    * sample relevant JSON for the getCoord function below:
+    * {
+    *    "results" : [ ...
+    *       { ...
+    *         "geometry" : {
+    *              "location" : {
+    *                  "lat" : 37.4224764,
+    *                  "lng" : -122.0842499
+    *        }, ...
+    *        }
+    *      ],
+    *      "status": "OK"
+    * }
+    */
+
   def getCoord(json_string: Option[Any], coordType: String): Double = {
     json_string match {
       case Some(m: Map[String, Any]) => m("results") match {
