@@ -1,8 +1,8 @@
 package EasyJSON
 
-import net.minidev.json.JSONValue
-import net.minidev.json.JSONArray
-import net.minidev.json.JSONObject
+import net.minidev.json.{JSONValue, JSONArray, JSONObject}
+import scala.language.dynamics
+
 
 import scala.collection.JavaConversions._
 
@@ -20,36 +20,35 @@ import scala.collection.JavaConversions._
   * person.kids(1).toString   // "Marta"
   */
 
-case class JSONException extends Exception
+//case class Exception extends Exception
 
 class ScalaJSON(o: java.lang.Object) extends Seq[ScalaJSON] with Dynamic {
   override def toString: String = o.toString
   def toInt: Int = o match {
     case i: Integer => i
-    case _ => throw new JSONException
+    case _ => throw new Exception
   }
   def toDouble: Double = o match {
     case d: java.lang.Double => d
     case f: java.lang.Float => f.toDouble
-    case _ => throw new JSONException
+    case _ => throw new Exception
   }
   def apply(key: String): ScalaJSON = o match {
     case m: JSONObject => new ScalaJSON(m.get(key))
-    case _ => throw new JSONException
+    case _ => throw new Exception
   }
 
   def apply(idx: Int): ScalaJSON = o match {
     case a: JSONArray => new ScalaJSON(a.get(idx))
-    case _ => throw new JSONException
+    case _ => throw new Exception
   }
   def length: Int = o match {
     case a: JSONArray => a.size()
     case m: JSONObject => m.size()
-    case _ => throw new JSONException
   }
   def iterator: Iterator[ScalaJSON] = o match {
     case a: JSONArray => new ScalaJSONIterator(a.iterator())
-    case _ => throw new JSONException
+    case _ => throw new Exception
   }
 
   def selectDynamic(name: String): ScalaJSON = apply(name)
