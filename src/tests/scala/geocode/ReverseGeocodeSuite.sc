@@ -17,7 +17,8 @@ implicit val formats = DefaultFormats // Brings in default date formats etc.
 //KafkaParser
 //PlumeParser
 //GoogleMapsRequester
-
+//GetDistinctLatLongs
+//Geocoder
 
 @RunWith(classOf[JUnitRunner])
 class ReverseGeocodeSuite extends FunSuite {
@@ -30,7 +31,7 @@ class ReverseGeocodeSuite extends FunSuite {
 
   test("Google Maps API returns a String") {
     new TestGeo {
-      val result = GoogleMapsRequester(latitudeTest, longitudeTest, GOOGLEMAPS)
+      val result = GoogleMapsRequester(latitudeTest, longitudeTest, GOOGLEMAPS, "locality")
       assert(result.getClass.getName == "java.lang.String")
     }
 
@@ -48,11 +49,13 @@ class ReverseGeocodeSuite extends FunSuite {
 
   test("Plume Parser returns a sequence of CassandraRows") {
     new TestGeo{
-      val result = PlumeParser(plumeSeqTest)
+      val result = Geocoder(plumeSeqTest)
       assert(result.getClass.getName = "scala.collection.Seq$")
 //      assert(result.getClass.getName = "scala.collection.immutable.$colon$colon")
       assert(result(0).getClass.getName = "CassandraRow")
     }     
   }
+
+  test("G")
 
 }
