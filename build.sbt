@@ -22,5 +22,8 @@ libraryDependencies ++= Seq(
   "net.minidev" % "json-smart" % "2.1.1",
   "junit" % "junit" % "4.10" % "test",
   "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.4",
-  "com.datastax.cassandra" % "cassandra-driver-core" % "3.3.0"
+  "com.datastax.cassandra" % "cassandra-driver-core" % "3.3.0",
+  "org.scalatest" %% "scalatest" % "2.2.4"
 )
+
+libraryDependencies += "junit" % "junit" % "4.10" % "test"
