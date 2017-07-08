@@ -2,6 +2,7 @@ package geocode
 
 import scala.io._
 import java.util.Properties
+
 import org.apache.spark
 import org.apache.spark._
 import org.apache.spark.SparkContext
@@ -26,11 +27,11 @@ import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.serialization.StringDeserializer
 
 import scala.util.parsing.json.JSON.parseFull
-
 import EasyJSON._
-import EasyJSON.JSON.{parseJSON, makeJSON}
+import EasyJSON.JSON.{makeJSON, parseJSON}
 import EasyJSON.ScalaJSON
 import EasyJSON.ScalaJSONIterator
+import com.datastax.driver.core.Cluster
 
 
 /**
@@ -59,6 +60,25 @@ object ReverseGeocode{
 
     val coordinatesTest = QueryDistinctLatLongs()
     println(coordinatesTest)
+
+    // Connect to the Cassandra DB
+    implicit val session = new Cluster
+    .Builder()
+      .addContactPoints("localhost")
+      .withPort(9042)
+      .build()
+      .connect()
+
+    // Build Cassandra Assets
+    val createKeyspace = "CREATE keyspace plume WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };"
+    val createUDT = "CREATE TYPE plume.pollution_data (value_upm float,pi float,aqi float,aqi_cn float);"
+    val buildRaw = "CREATE TABLE IF NOT EXISTS plume.pollution_data_by_lat_lon (latitude double,longitude double,timestamp double,pm_data frozen <pollution_data>,nitrous_data frozen <pollution_data>,pm_data_ten frozen <pollution_data>,pm_data_twenty_five frozen <pollution_data>,ozone_data frozen <pollution_data>,overall_data frozen <pollution_data>,primary key (latitude, longitude, timestamp));"
+    val buildGeoDict = "CREATE TABLE IF NOT EXISTS plume.geodatadictionary (latitude double,longitude double,geo text,primary key (latitude, longitude));"
+
+    session.execute(createKeyspace)
+    session.execute(createUDT)
+    session.execute(buildRaw)
+    session.execute(buildGeoDict)
 
     Geocoder(coordinatesTest)
   }
