@@ -70,8 +70,8 @@ object ReverseGeocode{
       .connect()
 
     // Build Cassandra Assets
-    val createKeyspace = "CREATE keyspace plume WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };"
-    val createUDT = "CREATE TYPE plume.pollution_data (value_upm float,pi float,aqi float,aqi_cn float);"
+    val createKeyspace = "CREATE keyspace IF NOT EXISTS plume WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };"
+    val createUDT = "CREATE TYPE IF NOT EXISTS plume.pollution_data (value_upm float,pi float,aqi float,aqi_cn float);"
     val buildRaw = "CREATE TABLE IF NOT EXISTS plume.pollution_data_by_lat_lon (latitude double,longitude double,timestamp double,pm_data frozen <pollution_data>,nitrous_data frozen <pollution_data>,pm_data_ten frozen <pollution_data>,pm_data_twenty_five frozen <pollution_data>,ozone_data frozen <pollution_data>,overall_data frozen <pollution_data>,primary key (latitude, longitude, timestamp));"
     val buildGeoDict = "CREATE TABLE IF NOT EXISTS plume.geodatadictionary (latitude double,longitude double,geo text,primary key (latitude, longitude));"
 
