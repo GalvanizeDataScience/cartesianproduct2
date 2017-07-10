@@ -1,10 +1,6 @@
-package kafka
-
 import java.util.Properties
-
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
-
 import scala.io._
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 /**
   * Kafka broker to ingest data from plume.io
@@ -16,6 +12,7 @@ object KafkaBroker extends App {
 
 
   case class Coordinates(lat: Double, lon: Double)
+
   override def main(args: Array[String]): Unit = {
 
     // parameters
