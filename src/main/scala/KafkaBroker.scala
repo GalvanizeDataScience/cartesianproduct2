@@ -2,6 +2,7 @@ import java.util.Properties
 import scala.io._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import akka.actor._
+import java.io.File
 //import akka.routing.BalancingPool
 
 /**
@@ -41,8 +42,9 @@ object KafkaBroker extends App {
 
     //gets lat and lon from a txt file; specific formatting for coords = lines.map(...) will depend on structure of
     //the coordinates in the input file
-    val testfile = "/Users/lukmaanbawazer/gU4/cartesianproduct2/test_latlons.txt" //source file of geolocations
-    val source = Source.fromFile(testfile)
+    val testFileName = "test_latlons.txt"
+    val testFileLoc = new File(getClass.getClassLoader.getResource(testFileName).getPath)
+    val source = Source.fromFile(testFileLoc)
     val lines = source.getLines
     val rm = "()".toSet
 
