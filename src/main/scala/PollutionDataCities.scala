@@ -1,4 +1,4 @@
-import KafkaBroker.Coordinates
+import kafka.KafkaBroker.Coordinates
 import scala.util.parsing.json._
 import scala.io.Source
 
@@ -60,7 +60,8 @@ class PollutionDataCities {
       val json = JSON.parseFull(response)
       val lat = getCoord(json, "lat")
       val lng = getCoord(json, "lng")
-      Coordinates(lat, lng)
+      val coords = new Coordinates(lat, lng)
+      coords
     }
     addresses.map(x => (x, latLng(x)))
   }
