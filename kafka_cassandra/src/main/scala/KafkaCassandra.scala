@@ -1,18 +1,18 @@
-package kafka
-
+/**
+  * Created by michaelseeber on 7/11/17.
+  */
 import java.util
 import java.util.Properties
 
 import com.datastax.driver.core.Cluster
-import local_utils.{DoubleExtractor, ListExtractor, MapExtractor}
+import ClassCasting.{DoubleExtractor, ListExtractor, MapExtractor}
 import org.apache.kafka.clients.consumer.KafkaConsumer
 
 import scala.collection.JavaConverters._
 import scala.util.parsing.json.JSON
-/**
-  * Created by michaelseeber on 7/11/17.
-  */
-object KafkaToCassandra {
+
+
+object KafkaCassandra{
   def parseRecord(record: String) = {
     for {
       Some(MapExtractor(map)) <- List(JSON.parseFull(record))
@@ -63,11 +63,23 @@ object KafkaToCassandra {
     consumer.subscribe(util.Collections.singletonList(TOPIC))
 
     implicit val session = new Cluster
-      .Builder()
+    .Builder()
       .addContactPoints("localhost")
       .withPort(9042)
       .build()
       .connect()
+
+    val create_type = s"CREATE TYPE IF NOT EXISTS plume.pollution_data (" +
+      s"value_upm float, pi float, aqi float, aqi_cn float)"
+    val create_table = s"CREATE TABLE IF NOT EXISTS plume.pollution_data_by_lat_lon (" +
+      s"latitude double, longitude double, timestamp double, pm_data frozen <pollution_data>," +
+      s"nitrous_data frozen <pollution_data>, pm_data_ten frozen <pollution_data>," +
+      s"pm_data_twenty_five frozen <pollution_data>, ozone_data frozen <pollution_data>," +
+      s"overall_data frozen <pollution_data>, primary key ((latitude, longitude), timestamp)" +
+      s") with clustering order by (timestamp desc)"
+
+    session.execute(create_type)
+    session.execute(create_table)
 
     while(true) {
       val records = consumer.poll(25)
@@ -92,6 +104,7 @@ object KafkaToCassandra {
           s"$pm_data_ten, $pm_data_twenty_five)"
 
         session.execute(command)
+        println(1)
 
       }
     }

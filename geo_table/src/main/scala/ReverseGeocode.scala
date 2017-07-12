@@ -1,36 +1,9 @@
-package geocode
 
-import scala.io._
-import java.util.Properties
-
-import org.apache.spark
-import org.apache.spark._
 import org.apache.spark.SparkContext
-import org.apache.spark.SparkContext._
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.cassandra
-import org.apache.spark.sql.SparkSession
-import com.datastax.spark
-import com.datastax.spark._
-import com.datastax.spark.connector
 import com.datastax.spark.connector._
-import com.datastax.spark.connector.cql
-import com.datastax.spark.connector.cql._
-import com.datastax.spark.connector.cql.CassandraConnector
-import com.datastax.spark.connector.cql.CassandraConnector._
 import com.datastax.spark.connector.rdd.CassandraTableScanRDD
-import org.apache.spark.streaming._
-import org.apache.spark.streaming.kafka010._
-import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
-import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
-import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.apache.kafka.common.serialization.StringDeserializer
-
-import scala.util.parsing.json.JSON.parseFull
-import EasyJSON._
-import EasyJSON.JSON.{makeJSON, parseJSON}
-import EasyJSON.ScalaJSON
-import EasyJSON.ScalaJSONIterator
+import EasyJSON.JSON.{parseJSON}
 import com.datastax.driver.core.Cluster
 
 
@@ -48,8 +21,8 @@ object ReverseGeocode{
 
   def main(args: Array[String]): Unit = {
     // dummy values for latitude and longitude
-    val latitudeTest = 40.714224
-    val longitudeTest = -73.961452
+    val latitudeTest = 48.85
+    val longitudeTest = 2.294
 
     // GOOGLEMAPS API key
     // access google maps token https://github.com/zipfian/cartesianproduct2/wiki/TOKEN
@@ -65,11 +38,9 @@ object ReverseGeocode{
 
     // dummy result from google maps API
     val result = GoogleMapsRequester(latitudeTest, longitudeTest, GOOGLEMAPS, "locality")
-    println(result)
 
     // Query raw pollution table from Cassandra
     val coordinatesTest = QueryDistinctLatLongs()
-    println(coordinatesTest)
 
     // Get geographic metadata from google maps API and store in plume.geodatadictionary table
     Geocoder(coordinatesTest)
@@ -118,7 +89,7 @@ object ReverseGeocode{
     val latLongArrays = rawGeoData.map(row => cols.map(row.getDouble(_)))
 
     val coordinates = latLongArrays.map(x => Map("latitude" -> x(0), "longitude" -> x(1))).collect()
-  coordinates
+    coordinates
   }
 
 
@@ -148,15 +119,12 @@ object ReverseGeocode{
     }
 
     // Get EasyJSON parsing objects after applying to GoogleMapRequest
-    val resultsSeq = for (point <- coordinates) yield parseJSON(GoogleMapsRequester(point("latitude"), point("longitude"), GOOGLEMAPS, "locality"))
+    val resultsSeq = for (point <- coordinates) yield (point, parseJSON(GoogleMapsRequester(point("latitude"), point("longitude"), GOOGLEMAPS, "locality")))
     // Get latitude, longitude, and geo result_type info from each EasyJSON tree.
-    val geoSeq = for (tree <- resultsSeq) yield (tree.results(0).geometry.location.lat.toDouble, tree.results(0).geometry.location.lng.toDouble, tree.results(0).formatted_address.toString)
+    val geoSeq = for (result <- resultsSeq) yield (result._1("latitude"), result._1("longitude"), result._2.results(0).formatted_address.toString)
     println("In Geocoder(), printing geoSeq")
-    println(geoSeq)
-    // Parallelize geoSeq into RDD
-    val geoSeqPartial = geoSeq.take(2)
-    println(geoSeqPartial)
-    val geoRDD = sc.parallelize(geoSeqPartial)
+
+    val geoRDD = sc.parallelize(geoSeq)
 
     geoRDD.take(1).foreach(println)
 
@@ -183,5 +151,3 @@ object ReverseGeocode{
     googleMapsResult
   }
 }
-
-

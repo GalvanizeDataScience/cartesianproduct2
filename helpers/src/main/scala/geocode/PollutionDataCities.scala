@@ -3,7 +3,6 @@ package geocode
 /**
   * Created by michaelseeber on 7/10/17.
   */
-import kafka.KafkaBroker.Coordinates
 import scala.util.parsing.json._
 import scala.io.Source
 
@@ -15,6 +14,8 @@ object PollutionDataCities extends App{
 
   }
 
+  case class Coordinates(lat: Double, lon: Double)
+
   class pollutionGetter {
 
     def main(): Unit = {
@@ -22,9 +23,7 @@ object PollutionDataCities extends App{
       val inputCities = "utils/400cities_final.txt"
       val splitCities = Source.fromFile(inputCities).getLines.mkString.split(",")
 
-      println("About to start getter")
       coordinateGetter(splitCities)
-      println("Finished")
 
 
     }
