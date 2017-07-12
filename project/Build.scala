@@ -19,7 +19,8 @@ object CartesianBuild extends Build {
     "org.apache.kafka" %% "kafka" % "0.10.1.1",
     "org.apache.kafka" % "kafka-clients" % "0.10.1.1",
     "net.minidev" % "json-smart" % "2.1.1",
-    "junit" % "junit" % "4.10" % "test"
+    "junit" % "junit" % "4.10" % "test",
+    "com.typesafe.akka" %% "akka-actor" % "2.5.3"
   )
 
 
@@ -48,6 +49,9 @@ object CartesianBuild extends Build {
     .settings(commonSettings) dependsOn(helpers)
 
   lazy val kafka_spark = Project(id ="cartesian-kafka_spark", base = file("kafka_spark"))
+    .settings(commonSettings) dependsOn(helpers)
+
+  lazy val weather_kafka_cassandra = Project(id ="cartesian-weather_kafka_cassandra", base = file("weather_kafka_cassandra"))
     .settings(commonSettings) dependsOn(helpers)
 
 }
