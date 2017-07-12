@@ -3,6 +3,8 @@
   */
 
 import sbt._
+import sbtassembly._
+import sbtassembly.AssemblyKeys._
 import Keys._
 
 object CartesianBuild extends Build {
@@ -25,7 +27,12 @@ object CartesianBuild extends Build {
     organization := "cartesianproduct2",
     version := "1.0",
     scalaVersion := "2.11.0",
-    libraryDependencies ++= commonDependencies)
+    libraryDependencies ++= commonDependencies,
+    assemblyMergeStrategy in assembly := {
+      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+      case x => MergeStrategy.first
+    }
+  )
 
 
   lazy val helpers = Project(id ="cartesian-helpers", base = file("helpers"))
