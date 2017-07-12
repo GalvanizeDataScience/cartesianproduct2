@@ -1,36 +1,10 @@
-package geocode
 
-import scala.io._
-import java.util.Properties
-import org.apache.spark
-import org.apache.spark._
 import org.apache.spark.SparkContext
-import org.apache.spark.SparkContext._
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.cassandra
-import org.apache.spark.sql.SparkSession
-import com.datastax.spark
-import com.datastax.spark._
-import com.datastax.spark.connector
 import com.datastax.spark.connector._
-import com.datastax.spark.connector.cql
-import com.datastax.spark.connector.cql._
-import com.datastax.spark.connector.cql.CassandraConnector
-import com.datastax.spark.connector.cql.CassandraConnector._
 import com.datastax.spark.connector.rdd.CassandraTableScanRDD
-import org.apache.spark.streaming._
-import org.apache.spark.streaming.kafka010._
-import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
-import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
-import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.apache.kafka.common.serialization.StringDeserializer
-
-import scala.util.parsing.json.JSON.parseFull
-
-import EasyJSON._
-import EasyJSON.JSON.{parseJSON, makeJSON}
-import EasyJSON.ScalaJSON
-import EasyJSON.ScalaJSONIterator
+import EasyJSON.JSON.{parseJSON}
+import com.datastax.driver.core.Cluster
 
 
 /**
@@ -47,28 +21,59 @@ object ReverseGeocode{
 
   def main(args: Array[String]): Unit = {
     // dummy values for latitude and longitude
-    val latitudeTest = 40.714224
-    val longitudeTest = -73.961452
+    val latitudeTest = 48.85
+    val longitudeTest = 2.294
 
     // GOOGLEMAPS API key
-    val GOOGLEMAPS = "AIzaSyBXmcsOVZ-d2B2aiVcwoUpSai-JNh3y5yc"
+    // access google maps token https://github.com/zipfian/cartesianproduct2/wiki/TOKEN
+    lazy val GOOGLEMAPS:Option[String] = sys.env.get("GOOGLEMAPS") orElse {
+      println("No token found. Check how to set it up at https://github.com/zipfian/cartesianproduct2/wiki/TOKEN")
+      None
+    }
+
+    // Setup Cassandra assets and environment
+    val cassandraStatus = SetupCassandra()
+    assert(cassandraStatus == true)
+
 
     // dummy result from google maps API
     val result = GoogleMapsRequester(latitudeTest, longitudeTest, GOOGLEMAPS, "locality")
-    println(result)
 
+    // Query raw pollution table from Cassandra
     val coordinatesTest = QueryDistinctLatLongs()
-    println(coordinatesTest)
 
+    // Get geographic metadata from google maps API and store in plume.geodatadictionary table
     Geocoder(coordinatesTest)
   }
 
+  /**
+    * Setup Cassandra Tables and clear the contents of plume.geodatadictionary so the table can be rebuilt.
+    */
+  def SetupCassandra(): Boolean = {
+    // Connect to the Cassandra DB
+    implicit val session = new Cluster
+    .Builder()
+      .addContactPoints("localhost")
+      .withPort(9042)
+      .build()
+      .connect()
 
-//  // Define Spark configuration
-//  val conf = new SparkConf().setMaster("local[2]").setAppName("spark_conf")
-//  // Define Spark Context, should identify and connect to a locally running cassandra database
-//  val sc = new SparkContext(conf) //.set(“spark.cassandra.connection.host”, “localhost”)
+    // Build Cassandra Assets
+    val createKeyspace = "CREATE keyspace IF NOT EXISTS plume WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };"
+    val createUDT = "CREATE TYPE IF NOT EXISTS plume.pollution_data (value_upm float,pi float,aqi float,aqi_cn float);"
+    val buildRaw = "CREATE TABLE IF NOT EXISTS plume.pollution_data_by_lat_lon (latitude double,longitude double,timestamp double,pm_data frozen <pollution_data>,nitrous_data frozen <pollution_data>,pm_data_ten frozen <pollution_data>,pm_data_twenty_five frozen <pollution_data>,ozone_data frozen <pollution_data>,overall_data frozen <pollution_data>,primary key (latitude, longitude, timestamp));"
+    val buildGeoDict = "CREATE TABLE IF NOT EXISTS plume.geodatadictionary (latitude double,longitude double,geo text,primary key (latitude, longitude));"
+    // Truncate plume.geodatadictionary so that it can be rebuilt
+    val clearGeoDict = "TRUNCATE plume.geodatadictionary;"
 
+    // Execute Cassandra commands
+    session.execute(createKeyspace)
+    session.execute(createUDT)
+    session.execute(buildRaw)
+    session.execute(buildGeoDict)
+    session.execute(clearGeoDict)
+    true
+  }
 
   /**
     * Executes a query that gets distinct lat/long pairs from the raw Plume Cassandra Table and returns a Sequence of
@@ -84,7 +89,7 @@ object ReverseGeocode{
     val latLongArrays = rawGeoData.map(row => cols.map(row.getDouble(_)))
 
     val coordinates = latLongArrays.map(x => Map("latitude" -> x(0), "longitude" -> x(1))).collect()
-  coordinates
+    coordinates
   }
 
 
@@ -101,19 +106,29 @@ object ReverseGeocode{
     * geodata : UDT --- ask Daniel Gorham
     *
     */
-  case class geodata(latitude: Double, longitude: Double, geodata: String)
+  case class geodata(latitude  : Double, longitude: Double, geodata: String)
   def Geocoder(coordinates: Seq[Map[String, Double]]) : Unit = {
     // Input : coordinates ---- Sequence of unique lat/long pairs generated by GetDistinctLatLongs()
     // Output: GeoDictionary ---- Cassandra Table that maps each unique lat long to geographic metadata
 
+    // GOOGLEMAPS API key
+    // access google maps token https://github.com/zipfian/cartesianproduct2/wiki/TOKEN
+    lazy val GOOGLEMAPS:Option[String] = sys.env.get("GOOGLEMAPS") orElse {
+      println("No token found. Check how to set it up at https://github.com/zipfian/cartesianproduct2/wiki/TOKEN")
+      None
+    }
+
     // Get EasyJSON parsing objects after applying to GoogleMapRequest
-    val resultsSeq = for (point <- coordinates) yield parseJSON(GoogleMapsRequester(point("latitude"), point("longitude"), "AIzaSyBXmcsOVZ-d2B2aiVcwoUpSai-JNh3y5yc", "locality"))
+    val resultsSeq = for (point <- coordinates) yield (point, parseJSON(GoogleMapsRequester(point("latitude"), point("longitude"), GOOGLEMAPS, "locality")))
     // Get latitude, longitude, and geo result_type info from each EasyJSON tree.
-    val geoSeq = for (tree <- resultsSeq) yield (tree.results(0).geometry.location.lat.toDouble, tree.results(0).geometry.location.lng.toDouble, tree.results(0).formatted_address.toString)
-    // Parallelize geoSeq into RDD
+    val geoSeq = for (result <- resultsSeq) yield (result._1("latitude"), result._1("longitude"), result._2.results(0).formatted_address.toString)
+    println("In Geocoder(), printing geoSeq")
+
     val geoRDD = sc.parallelize(geoSeq)
 
-    // Save geoRDD to Cassandra.
+    geoRDD.take(1).foreach(println)
+
+    // Save geoRDD to Cassandra
     geoRDD.saveToCassandra("plume", "geodatadictionary", SomeColumns("latitude", "longitude", "geo"))
     println("saveToCassandra was successful!")
 
@@ -125,16 +140,14 @@ object ReverseGeocode{
     *  factored into an API call. The results of the API call are then
     *  returned as a json string [googleMapsResult]
     */
-  def GoogleMapsRequester(lat: Double, long: Double, GOOGLEMAPS: String, result_type: String) : String = {
+  def GoogleMapsRequester(lat: Double, long: Double, GOOGLEMAPS: Option[String], result_type: String) : String = {
     // Input: lat --- latitude, long --- longitude, GOOGLEMAPS --- API key
     // Output: googleMapsResult --- raw result from google maps API
 
     // Format inputs into a url string that will be used to request from a REST API
-    val requestURL = f"https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat%s,$long%s&result_type=$result_type%s&key=$GOOGLEMAPS%s"
+    val requestURL = f"https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat%s,$long%s&result_type=$result_type%s&key=${GOOGLEMAPS.get}%s"
     // Make an HTTP GET request to the requestURL and return the response as a string
     val googleMapsResult = scala.io.Source.fromURL(requestURL).mkString
     googleMapsResult
   }
 }
-
-

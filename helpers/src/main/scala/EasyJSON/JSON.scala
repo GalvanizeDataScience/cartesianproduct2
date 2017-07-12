@@ -1,6 +1,6 @@
 package EasyJSON
 
-import net.minidev.json.{JSONValue, JSONArray, JSONObject}
+import net.minidev.json.JSONValue
 
 import scala.collection.JavaConversions._
 
