@@ -3,12 +3,14 @@ import scala.io._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import akka.actor._
 import java.io.File
-//import akka.routing.BalancingPool
+import akka.routing.BalancingPool
 
 /**
   * Kafka broker to ingest data from plume.io
   * /pollution/forecast
   * https://api.plume.io/1.0/pollution/forecast?token=xxx&lat=48.85&lon=2.294
+  *
+  * With an akka wrapper added to manage distribution of brokers to all >400 cities of the Plume.io dataset
   */
 
 object KafkaBroker extends App {
@@ -20,10 +22,11 @@ object KafkaBroker extends App {
   class PlumeApiActor extends Actor {
     def receive = {
       case Ingestion_parameters(brokers, topic, lat, lon, sleepTime) => {
-        println(s"lat = $lat and lon = $lon")
 
         // user 'lat' and 'lon' to create Coordinates object
         val location = Coordinates(lat, lon)
+        println(s"these is the location, received by the actor: $location")
+
         startIngestion(brokers, topic, location, sleepTime)
       }
       // TODO: add a case for returning the name of the city associated with the lat/lon
@@ -36,55 +39,59 @@ object KafkaBroker extends App {
     // parameters
     val topic = args(0) // plume_pollution
     val brokers = args(1) // localhost:9092 - "broker1:port,broker2:port"
+
+    /* in the akka version of the broker, lat, lon will come from either a txt file or, more likely,
+     a cassandra query
+      */
     //val lat = args(2).toDouble // latitude - test value: 48.85
     //val lon = args(3).toDouble // longitude - test value: 2.294
     val sleepTime = args(2).toInt // 1000 - time between queries to API
 
-    //gets lat and lon from a txt file; specific formatting for coords = lines.map(...) will depend on structure of
-    //the coordinates in the input file
+    //in current form, the lines below gets lat and lon from a test txt file;
     val testFileName = "test_latlons.txt"
     val testFileLoc = new File(getClass.getClassLoader.getResource(testFileName).getPath)
+
     val source = Source.fromFile(testFileLoc)
     val lines = source.getLines
+
+    //getting a second iterator, just to get it's length (there's probably a way to do this with a single iterator)
+    val source_forlen = Source.fromFile(testFileLoc)
+    val lines_forlen = source_forlen.getLines
+
     val rm = "()".toSet
+
+    /*for ingestion, specific formatting for
+      coords = lines.map(...), below, will depend on structure of the coordinates in the input file*/
 
     //if line strings are in the form (1.0,2.0):
     //val coords = lines.map(l => l.split(",")).map(a => (a(0).filterNot(rm).toDouble,a(1).filterNot(rm).toDouble))
 
     //if line strings are in the form (city,(1.0,2.0)), and want to keep this but as (String, (Double,Double))
     val coords = lines.map(l => l.split(",")).map(a =>(a(0).filterNot(rm),(a(1).filterNot(rm).toDouble,a(2).filterNot(rm).toDouble)))
-    println(s"these are the coords: $coords")
 
-    println("just before ActorSystem")
+    //getting a second iterator, just to get it's length (there's probably a way to do this with a single iterator)
+    val coords_forlen = lines_forlen.map(l => l.split(",")).map(a =>(a(0).filterNot(rm),(a(1).filterNot(rm).toDouble,a(2).filterNot(rm).toDouble)))
+
     val system = ActorSystem("PlumeActorSystem")
 
-    println("just before actor")
-    //test a single actor
-    val actor = system.actorOf(Props[PlumeApiActor], "PlumeActorPool")
+    /* The router BalancingPool utility automatically distributes akka actors, as they are instantiated, in a balanced
+    manner across available nodes (here indicated as 4, when running locally).
+    Later, for use on the Google Compute Engine, define router info in a config file*/
 
-    //later, for use on the Google Compute Engine, define router info in a config file
-    //val router = system.actorOf(BalancingPool(4).props(Props[PlumeApiActor]), "PlumeActorPool")
+    val router = system.actorOf(BalancingPool(4).props(Props[PlumeApiActor]), "PlumeActorPool")
 
+    val length = coords_forlen.length
+    val lengthInt = length.toInt
 
-    val length = coords.length
-    println(s"this is the length of the coords iterator: $length")
-    val length2 = length.toInt
-    println(s"this is the length of the coords iterator, after .toInt: $length2")
-    for (i <- 0 until coords.length) {
+    for (i <- 0 until lengthInt) {
+
       val loc = coords.next
-      println(s"this is the location: $loc")
       val lat = loc._2._1
       val lon = loc._2._2
 
-      val ingestion_params = (brokers, topic, lat, lon, sleepTime)
-      actor ! ingestion_params//send the router a message, which it will distribute to a sub-actor
+      val ingestion_params = Ingestion_parameters(brokers, topic, lat, lon, sleepTime)
+      router ! ingestion_params//send the router a message, which it will distribute to a sub-actor
     }
-
-
-
-
-
-
   } // end of main
 
   /**
@@ -127,7 +134,6 @@ object KafkaBroker extends App {
     * @param sleepTime Time interval between queries to plume API
     *
     */
-
 
   def startIngestion(brokers:String, topic:String, location: Coordinates, sleepTime: Int) = {
 
