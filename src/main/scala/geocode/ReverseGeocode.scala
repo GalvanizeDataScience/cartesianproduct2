@@ -91,7 +91,7 @@ object ReverseGeocode{
     val createKeyspace = "CREATE keyspace IF NOT EXISTS plume WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };"
     val createUDT = "CREATE TYPE IF NOT EXISTS plume.pollution_data (value_upm float,pi float,aqi float,aqi_cn float);"
     val buildRaw = "CREATE TABLE IF NOT EXISTS plume.pollution_data_by_lat_lon (latitude double,longitude double,timestamp double,pm_data frozen <pollution_data>,nitrous_data frozen <pollution_data>,pm_data_ten frozen <pollution_data>,pm_data_twenty_five frozen <pollution_data>,ozone_data frozen <pollution_data>,overall_data frozen <pollution_data>,primary key (latitude, longitude, timestamp));"
-    val buildGeoDict = "CREATE TABLE IF NOT EXISTS plume.geodatadictionary (latitude double,longitude double,geo text,primary key (latitude, longitude));"
+    val buildGeoDict = "CREATE TABLE IF NOT EXISTS plume.geodatadictionary (latitude double,longitude double,city text, state text,country text,geometry text,rawGeo text, primary key (latitude, longitude));"
     // Truncate plume.geodatadictionary so that it can be rebuilt
     val clearGeoDict = "TRUNCATE plume.geodatadictionary;"
 
@@ -129,11 +129,11 @@ object ReverseGeocode{
     *
     * latitude : Double
     * longitude: Double
+    * city: String
+    * state: String
     * country: String
-    * political: String
-    * administrative_1 : String
-    * geodata : UDT --- ask Daniel Gorham
-    *
+    * geometry: String
+    * rawgeo: String
     */
   case class geodata(latitude  : Double, longitude: Double, geodata: String)
   def Geocoder(coordinates: Seq[Map[String, Double]]) : Unit = {
@@ -148,20 +148,26 @@ object ReverseGeocode{
     }
 
     // Get EasyJSON parsing objects after applying to GoogleMapRequest
-    val resultsSeq = for (point <- coordinates) yield parseJSON(GoogleMapsRequester(point("latitude"), point("longitude"), GOOGLEMAPS, "locality"))
-    // Get latitude, longitude, and geo result_type info from each EasyJSON tree.
-    val geoSeq = for (tree <- resultsSeq) yield (tree.results(0).geometry.location.lat.toDouble, tree.results(0).geometry.location.lng.toDouble, tree.results(0).formatted_address.toString)
-    println("In Geocoder(), printing geoSeq")
-    println(geoSeq)
-    // Parallelize geoSeq into RDD
-    val geoSeqPartial = geoSeq.take(2)
-    println(geoSeqPartial)
-    val geoRDD = sc.parallelize(geoSeqPartial)
+    val resultsSeq = for (point <- coordinates) yield parseJSON(GoogleMapsRequester(point("latitude"), point("longitude"), GOOGLEMAPS, "locality|country|administrative_area_level_1"))
 
-    geoRDD.take(1).foreach(println)
+    // Mine data from each EasyJSON tree.
+    val geoSeq = for {
+      tree <- resultsSeq
+      result <- tree.results if result.types(0).toString == "locality"
+      latitude = result.geometry.location.lat.toDouble
+      longitude = result.geometry.location.lng.toDouble
+      city = result.formatted_address.toString.split(",")(0)
+      state = result.formatted_address.toString.split(",")(1)
+      country = result.formatted_address.toString.split(",")(2)
+      geometry = result.geometry.toString
+      rawGeo = tree.toString
+    } yield (latitude, longitude, city, state, country, geometry, rawGeo)
+
+    // Parallelize geoSeq into RDD
+    val geoRDD = sc.parallelize(geoSeq)
 
     // Save geoRDD to Cassandra
-    geoRDD.saveToCassandra("plume", "geodatadictionary", SomeColumns("latitude", "longitude", "geo"))
+    geoRDD.saveToCassandra("plume", "geodatadictionary", SomeColumns("latitude", "longitude", "city", "state", "country", "geometry", "rawgeo"))
     println("saveToCassandra was successful!")
 
   }
@@ -177,7 +183,8 @@ object ReverseGeocode{
     // Output: googleMapsResult --- raw result from google maps API
 
     // Format inputs into a url string that will be used to request from a REST API
-    val requestURL = f"https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat%s,$long%s&result_type=$result_type%s&key=${GOOGLEMAPS.get}%s"
+//    val requestURL = f"https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat%s,$long%s&result_type=$result_type%s&key=${GOOGLEMAPS.get}%s"
+    val requestURL = f"https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat%s,$long%s&key=${GOOGLEMAPS.get}%s"
     // Make an HTTP GET request to the requestURL and return the response as a string
     val googleMapsResult = scala.io.Source.fromURL(requestURL).mkString
     googleMapsResult
