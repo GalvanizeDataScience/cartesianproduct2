@@ -104,7 +104,6 @@ object KafkaCassandra{
           s"$pm_data_ten, $pm_data_twenty_five)"
 
         session.execute(command)
-        println(1)
 
       }
     }
