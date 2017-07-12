@@ -32,6 +32,8 @@ import EasyJSON.JSON.{makeJSON, parseJSON}
 import EasyJSON.ScalaJSON
 import EasyJSON.ScalaJSONIterator
 import com.datastax.driver.core.Cluster
+import geocode.ReverseGeocode.GoogleMapsRequester
+import EasyJSON.JSON.parseJSON
 
 
 /**
@@ -60,18 +62,22 @@ object ReverseGeocode{
 
     // Setup Cassandra assets and environment
     val cassandraStatus = SetupCassandra()
+    println("ASSERTING THAT CASSANDRA TABLES AND TYPES WERE SETUP")
     assert(cassandraStatus == true)
 
 
     // dummy result from google maps API
     val result = GoogleMapsRequester(latitudeTest, longitudeTest, GOOGLEMAPS, "locality")
+    println("PRINTING AN EXAMPLE OF THE OBJECT RETURNED BY GOOGLE MAPS API")
     println(result)
 
     // Query raw pollution table from Cassandra
     val coordinatesTest = QueryDistinctLatLongs()
+    println("PRINTING AN EXAMPLE OF THE DATA STRUCTURE USED BY THE 'Geocoder' FUNCTION")
     println(coordinatesTest)
 
     // Get geographic metadata from google maps API and store in plume.geodatadictionary table
+    println("RUNNING THE GEOCODER ON COORDINATES EXTRACTED FROM THE 'plume.pollution_data_by_lat_lon' TABLE")
     Geocoder(coordinatesTest)
   }
 
@@ -147,15 +153,14 @@ object ReverseGeocode{
       None
     }
 
-    // Get EasyJSON parsing objects after applying to GoogleMapRequest
+//    // Get EasyJSON parsing objects after applying to GoogleMapRequest
     val resultsSeq = for (point <- coordinates) yield parseJSON(GoogleMapsRequester(point("latitude"), point("longitude"), GOOGLEMAPS, "locality|country|administrative_area_level_1"))
 
-    // Mine data from each EasyJSON tree.
+//    // Mine data from each EasyJSON tree.
     val geoSeq = for {
-      point <- coordinates
-      latitude = point("latitude")
-      longitude = point("longitude")
-      tree <- resultsSeq
+      (tree, i) <- resultsSeq.zipWithIndex
+      latitude = coordinates(i)("latitude")
+      longitude = coordinates(i)("longitude")
       result <- tree.results if result.types(0).toString == "locality"
       city = result.formatted_address.toString.split(",")(0)
       state = result.formatted_address.toString.split(",")(1)
@@ -164,16 +169,12 @@ object ReverseGeocode{
       rawGeo = tree.toString
     } yield (latitude, longitude, city, state, country, geometry, rawGeo)
 
-    println("PRINTING geoSeq")
-    println(geoSeq)
-
     // Parallelize geoSeq into RDD
     val geoRDD = sc.parallelize(geoSeq)
 
     // Save geoRDD to Cassandra
     geoRDD.saveToCassandra("plume", "geodatadictionary", SomeColumns("latitude", "longitude", "city", "state", "country", "geometry", "rawgeo"))
     println("saveToCassandra was successful!")
-
   }
 
   /**
