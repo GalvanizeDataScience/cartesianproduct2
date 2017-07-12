@@ -152,16 +152,20 @@ object ReverseGeocode{
 
     // Mine data from each EasyJSON tree.
     val geoSeq = for {
+      point <- coordinates
+      latitude = point("latitude")
+      longitude = point("longitude")
       tree <- resultsSeq
       result <- tree.results if result.types(0).toString == "locality"
-      latitude = result.geometry.location.lat.toDouble
-      longitude = result.geometry.location.lng.toDouble
       city = result.formatted_address.toString.split(",")(0)
       state = result.formatted_address.toString.split(",")(1)
       country = result.formatted_address.toString.split(",")(2)
       geometry = result.geometry.toString
       rawGeo = tree.toString
     } yield (latitude, longitude, city, state, country, geometry, rawGeo)
+
+    println("PRINTING geoSeq")
+    println(geoSeq)
 
     // Parallelize geoSeq into RDD
     val geoRDD = sc.parallelize(geoSeq)
