@@ -25,7 +25,7 @@ object CartesianBuild extends Build {
 
   lazy val commonSettings = Seq(
     organization := "cartesianproduct2",
-    version := "1.0",
+    version := "0.1.0",
     scalaVersion := "2.11.0",
     libraryDependencies ++= commonDependencies,
     assemblyMergeStrategy in assembly := {
