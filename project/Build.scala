@@ -54,6 +54,9 @@ object CartesianBuild extends Build {
   lazy val weather_kafka_cassandra = Project(id ="cartesian-weather_kafka_cassandra", base = file("weather_kafka_cassandra"))
     .settings(commonSettings) dependsOn(helpers)
 
+  lazy val play_frontend = Project(id ="play_frontend", base = file("play_frontend")) //.enablePlugins(PlayScala))
+    .settings(commonSettings) dependsOn(helpers)
+
 }
 
 
