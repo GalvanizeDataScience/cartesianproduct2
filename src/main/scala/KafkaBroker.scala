@@ -1,10 +1,11 @@
-import java.util
 import java.util.Properties
-import java.io.File
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import scala.io._
 import akka.actor._
 import akka.routing.BalancingPool
+import org.apache.spark.{SparkConf, SparkContext}
+import com.datastax.spark.connector._
+import com.datastax.spark.connector.rdd.CassandraTableScanRDD
 
 /**
   * Kafka broker to ingest data from plume.io
@@ -43,46 +44,46 @@ object KafkaBroker extends App {
     val brokers = args(1) // localhost:9092 - "broker1:port,broker2:port"
     val sleepTime = args(2).toInt // 1000 - time between queries to API
 
-    //in current form, the lines below gets lat and lon from a test txt file;
-    val testFileName = "test_latlons.txt"
-    val testFileLoc = new File(getClass.getClassLoader.getResource(testFileName).getPath)
 
-    val source = Source.fromFile(testFileLoc)
-    val lines = source.getLines
+    //make connection to SparkContext
+    val conf = new SparkConf(true).set("spark.cassandra.connection.host", "104.196.29.34")
+    //      .set("spark.cassandra.auth.username", "cassandra")
+    //      .set("spark.cassandra.auth.password", "cassandra")
 
-    //getting a second iterator, just to get it's length (there's probably a way to do this with a single iterator)
-    val source_forlen = Source.fromFile(testFileLoc)
-    val lines_forlen = source_forlen.getLines
+    //    val sc = new SparkContext("spark://192.168.123.10:7077", "test", conf)
+    val sc = new SparkContext("local[*]", "CassandraConnection", conf)
+    //get the Cassandra table with lat lons
+    val coords: CassandraTableScanRDD[CassandraRow] = sc.cassandraTable("plume", "location_lat_lon")
 
-    val rm = "()".toSet
+    val coords_ = coords.map(row => (row.getDouble("lat"),row.getDouble("lon")))
 
+    //convert to iterator
+    val coords1  = coords_.collect.toIterator
+    //get another interator for getting iterator length
+    val coords_forlen = coords_.collect.toIterator
 
-    //if line strings are in the form (city,(1.0,2.0)), and want to keep this but as (String, (Double,Double))
-    val coords = lines.map(l => l.split(",")).map(a =>(a(0).filterNot(rm),(a(1).filterNot(rm).toDouble,a(2).filterNot(rm).toDouble)))
-
-    //getting a second iterator, just to get it's length (there's probably a way to do this with a single iterator)
-    val coords_forlen = lines_forlen.map(l => l.split(",")).map(a =>(a(0).filterNot(rm),(a(1).filterNot(rm).toDouble,a(2).filterNot(rm).toDouble)))
-
+    //create an actor system
     val system = ActorSystem("PlumeActorSystem")
 
     /* The router BalancingPool utility automatically distributes akka actors, as they are instantiated, in a balanced
     manner across available nodes (here indicated as 4, when running locally).
     Later, for use on the Google Compute Engine, define router info in a config file*/
-
     val router = system.actorOf(BalancingPool(4).props(Props[PlumeApiActor]), "PlumeActorPool")
 
     val length = coords_forlen.length
     val lengthInt = length.toInt
 
-    for (i <- 0 until lengthInt) {
+    for (i <- 0 until length) {
 
-      val loc = coords.next
-      val lat = loc._2._1
-      val lon = loc._2._2
+      val loc = coords1.next
+      val lat = loc._1
+      val lon = loc._2
 
       val ingestion_params = Ingestion_parameters(brokers, topic, lat, lon, sleepTime)
       router ! ingestion_params //send the router a message, which it will distribute to a sub-actor
     }
+
+    sc.stop()
   } // end of main
 
   /**
