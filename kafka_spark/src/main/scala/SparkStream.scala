@@ -78,12 +78,12 @@ object SparkStream {
     val create_type = s"CREATE TYPE IF NOT EXISTS plume.poll " +
       s"(value_upm float, pi float, aqi float, aqi_cn float)"
     val create_table = s"CREATE TABLE IF NOT EXISTS plume.pollution_data_by_geo " +
-      s"(geo text, latitude double, longitude double, timestamp double, " +
+      s"(city text, country text, latitude double, longitude double, timestamp double, " +
       s"overall_data frozen <plume.poll>, nitrous_data frozen <plume.poll>, " +
       s"ozone_data frozen <plume.poll>, particulate_matter frozen <plume.poll>, " +
       s"particulate_matter_ten frozen <plume.poll>, " +
       s"particulate_matter_twenty_five frozen <plume.poll>," +
-      s"PRIMARY KEY (geo, timestamp))"
+      s"PRIMARY KEY (city, country, timestamp))"
 
     session.execute(create_type)
     session.execute(create_table)
@@ -95,7 +95,7 @@ object SparkStream {
     val geo: CassandraTableScanRDD[CassandraRow] = sc.cassandraTable("plume",
       "geodatadictionary")
     val geoMap = geo.map(row => ((formatter.format(row.getDouble("latitude")),
-      formatter.format(row.getDouble("longitude"))), row.getString("geo")))
+      formatter.format(row.getDouble("longitude"))), (row.getString("city"), row.getString("country"))))
       .collectAsMap()
     val geoB = sc.broadcast(geoMap)
 
@@ -118,15 +118,17 @@ object SparkStream {
     val pollution = stream.map(record => parseRecord(record.value))
       .map(x => (geoB.value.get(formatter.format(x(0)._1),
         formatter.format(x(0)._2)), x(0)))
-      .map(x => (x._1.get, x._2._1, x._2._2, x._2._3,
+      .map(x => (x._1.get._1, x._1.get._2, x._2._1, x._2._2, x._2._3,
         UDTValue.fromMap(x._2._4 + ("value_upm" -> None)),
         UDTValue.fromMap(x._2._5), UDTValue.fromMap(x._2._6),
         UDTValue.fromMap(x._2._7 + ("value_upm" -> None)),
         UDTValue.fromMap(x._2._8), UDTValue.fromMap(x._2._9)))
 
+//    pollution.print()
+
     // Write stream of RDDs to Cassandra
     pollution.foreachRDD(x => x.saveToCassandra("plume", "pollution_data_by_geo",
-      SomeColumns("geo", "latitude", "longitude", "timestamp", "overall_data",
+      SomeColumns("city", "country", "latitude", "longitude", "timestamp", "overall_data",
         "nitrous_data", "ozone_data", "particulate_matter",
         "particulate_matter_ten", "particulate_matter_twenty_five")))
 

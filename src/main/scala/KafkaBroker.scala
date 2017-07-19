@@ -148,7 +148,8 @@ object KafkaBroker extends App {
       val producerRecord = new ProducerRecord[String, String](topic, response)
       val recordMetadata = producer.send(producerRecord, new ProducerCallback)
 
-//      val meta = recordMetadata.get()
+//      val meta = recordMetadata.get() // not needed as metadata is accessed through ProducerCallback
+
 
       producer.close()
 

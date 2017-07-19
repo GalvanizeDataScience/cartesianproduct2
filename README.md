@@ -48,3 +48,41 @@ If all is working, you should see the following output:
 
 # Additional Kafka commands
 List topics
+
+## Setting up Jupyter notebook
+
+Install pip and python-dev:
+
+> sudo apt-get install python-pip python-dev
+
+Install IPython. Since the machine will most likely be running Python 2.7, it is necessary to install an older version:
+
+> sudo pip install IPython=5.0
+
+Install Jupyter:
+
+> sudo pip install jupyter
+
+In order to run Jupyter with PySpark, the drivers need to be changed. Create a bash script called jupyter-pyspark with the following code:
+
+> #!/usr/bin/env bash
+
+> export PYSPARK_DRIVER_PYTHON=`which jupyter`
+
+> export PYSPARK_DRIVER_PYTHON_OPTS="notebook --NotebookApp.open_browser=False --NotebookApp.ip='*' --NotebookApp.port=8888"
+
+> dse pyspark
+
+Change permissions on the file:
+
+> chmod a+x jupyter-pyspark
+
+Move jupyter-pyspark to /usr/bin. Now running the jupyter-pyspark command from anywhere in the machine will begin a browserless Jupyter notebook running with a PySpark driver.
+
+In order to access the notebook remotely, ports must be opened to the relevant IPs. This may be done using the Google Cloud networking dashboard.
+
+
+
+
+
+
