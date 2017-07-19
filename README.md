@@ -10,6 +10,7 @@ Most of us are in the Advanced Data Engineering class at GalavanizeU Data Scienc
 
 ## Why We're Doing It 
 We're doing this because climate change is one the paramount issues of our generation. Decision makers need to have open and  easy access to data that comes together in a single place.
+
 ---
 Class Project for DSCI-6009-SU17
 
