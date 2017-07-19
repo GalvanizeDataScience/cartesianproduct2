@@ -1,5 +1,16 @@
 # Cartesian Product 2 - The class project
+---
+## What We're Doing
+Cartesian Product (CP) is a knowledge management platform that allows you to visualize data, explore deeper insight, and use your own data to help you answer your most pressing questions and contribute to clean energy development around the globe.
 
+What really distinguishes CP is its backend system that gives users the power to contribute their own data and insights or download the current state of our ever growing open source datasets. By crowd sourcing our knowledge management system, we strive to convert the linear process of one-off data science consulting into an iterative cycle of community contribution and engagement, driving data-informed decision making.
+
+## Who We Are
+Most of us are in the Advanced Data Engineering class at GalavanizeU Data Science Master's Program in San Francisco. We also have other members coming from the Galvanize Web Development Immersive program, but all of us are part of the Galvanize community. 
+
+## Why We're Doing It 
+We're doing this because climate change is one the paramount issues of our generation. Decision makers need to have open and  easy access to data that comes together in a single place.
+---
 Class Project for DSCI-6009-SU17
 
 So far:
@@ -81,8 +92,9 @@ Move jupyter-pyspark to /usr/bin. Now running the jupyter-pyspark command from a
 
 In order to access the notebook remotely, ports must be opened to the relevant IPs. This may be done using the Google Cloud networking dashboard.
 
+## Managing Multiple Projects
 
-
+Having a single build.sbt file is an issue if you want to develop multiple scala projects, as it becomes a dependency nightmare. Instead, we have a Build.scala file in /project which specifies the dependencies on a per-project level. This makes development much simpler.  
 
 
 
