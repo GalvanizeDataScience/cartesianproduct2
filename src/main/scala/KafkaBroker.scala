@@ -1,34 +1,89 @@
 import java.util.Properties
-
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
-
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, Callback, RecordMetadata}
 import scala.io._
+import akka.actor._
+import akka.routing.BalancingPool
+import org.apache.spark.{SparkConf, SparkContext}
+import com.datastax.spark.connector._
+import com.datastax.spark.connector.rdd.CassandraTableScanRDD
 
 /**
   * Kafka broker to ingest data from plume.io
   * /pollution/forecast
   * https://api.plume.io/1.0/pollution/forecast?token=xxx&lat=48.85&lon=2.294
+  *
+  * With an akka wrapper added to manage distribution of brokers to all >400 cities of the Plume.io dataset
   */
 
 object KafkaBroker extends App {
 
-
   case class Coordinates(lat: Double, lon: Double)
+
+  //class for sending Kafka parameters via akka PlumeApiActor actors
+  case class Ingestion_parameters(brokers: String, topic: String, lat: Double, lon: Double, sleepTime: Int)
+
+  class PlumeApiActor extends Actor {
+    def receive = {
+      case Ingestion_parameters(brokers, topic, lat, lon, sleepTime) => {
+
+        // user 'lat' and 'lon' to create Coordinates object
+        val location = Coordinates(lat, lon)
+        println(s"this is the location, received by the actor: $location")
+
+        startIngestion(brokers, topic, location, sleepTime)
+      }
+      // TODO: add a case for returning the name of the city associated with the lat/lon
+      case _ => println("Not a geocoordinate")
+    }
+  }
+
   override def main(args: Array[String]): Unit = {
 
     // parameters
     val topic = args(0) // plume_pollution
     val brokers = args(1) // localhost:9092 - "broker1:port,broker2:port"
-    val lat = args(2).toDouble // latitude - test value: 48.85
-    val lon = args(3).toDouble // longitude - test value: 2.294
-    val sleepTime = args(4).toInt // 1000 - time between queries to API
-
-    // user 'lat' and 'lon' to create Coordinates object
-    val location = Coordinates(lat, lon)
-
-    startIngestion(brokers, topic, location, sleepTime)
+    val sleepTime = args(2).toInt // 1000 - time between queries to API
 
 
+    //make connection to SparkContext
+    val conf = new SparkConf(true).set("spark.cassandra.connection.host", "104.196.29.34")
+    //      .set("spark.cassandra.auth.username", "cassandra")
+    //      .set("spark.cassandra.auth.password", "cassandra")
+
+    //    val sc = new SparkContext("spark://192.168.123.10:7077", "test", conf)
+    val sc = new SparkContext("local[*]", "CassandraConnection", conf)
+    //get the Cassandra table with lat lons
+    val coords: CassandraTableScanRDD[CassandraRow] = sc.cassandraTable("plume", "location_lat_lon")
+
+    val coords_ = coords.map(row => (row.getDouble("lat"),row.getDouble("lon")))
+
+    //convert to iterator
+    val coords1  = coords_.collect.toIterator
+    //get another interator for getting iterator length
+    val coords_forlen = coords_.collect.toIterator
+
+    //create an actor system
+    val system = ActorSystem("PlumeActorSystem")
+
+    /* The router BalancingPool utility automatically distributes akka actors, as they are instantiated, in a balanced
+    manner across available nodes (here indicated as 4, when running locally).
+    Later, for use on the Google Compute Engine, define router info in a config file*/
+    val router = system.actorOf(BalancingPool(4).props(Props[PlumeApiActor]), "PlumeActorPool")
+
+    val length = coords_forlen.length
+    val lengthInt = length.toInt
+
+    for (i <- 0 until length) {
+
+      val loc = coords1.next
+      val lat = loc._1
+      val lon = loc._2
+
+      val ingestion_params = Ingestion_parameters(brokers, topic, lat, lon, sleepTime)
+      router ! ingestion_params //send the router a message, which it will distribute to a sub-actor
+    }
+
+    sc.stop()
   } // end of main
 
   /**
@@ -54,7 +109,6 @@ object KafkaBroker extends App {
     //    props.put("linger.ms", new Integer(1))
     //    props.put("buffer.memory", new Integer(133554432))
 
-    // TODO: implement ProducerCallback()
 
     new KafkaProducer[String, String](props)
 
@@ -92,16 +146,10 @@ object KafkaBroker extends App {
       ).mkString
 
       val producerRecord = new ProducerRecord[String, String](topic, response)
-      val recordMetadata = producer.send(producerRecord)
+      val recordMetadata = producer.send(producerRecord, new ProducerCallback)
 
-      val meta = recordMetadata.get() // I could use this to write some tests
-      val msgLog =
-        s"""
-           |topic     = ${meta.topic()}
-           |offset    = ${meta.offset()}
-           |partition = ${meta.partition()}
-          """.stripMargin
-      println(msgLog)
+//      val meta = recordMetadata.get() // not needed as metadata is accessed through ProducerCallback
+
 
       producer.close()
 
@@ -112,5 +160,26 @@ object KafkaBroker extends App {
 
 
   } // end of startIngestion
+
+  class ProducerCallback extends Callback {
+
+    override def onCompletion(recordMetadata: RecordMetadata, ex: Exception): Unit = {
+      if (ex != null) {
+        println(ex)
+      }
+      else {
+        // what was done in startingestion
+        val meta = recordMetadata
+        val msgLog =
+          s"""
+             |topic     = ${recordMetadata.topic()}
+             |offset    = ${recordMetadata.offset()}
+             |partition = ${recordMetadata.partition()}
+            """.stripMargin
+        println(msgLog)
+      } // end of else
+    } // end of onCompletion
+
+  } // end of class
 
 } // end of KafkaBroker object
