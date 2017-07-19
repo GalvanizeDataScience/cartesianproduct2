@@ -1,5 +1,7 @@
 /**
-  * Created by michaelseeber on 7/11/17.
+  * Created by Daniel Gorham
+  * Edited by Michael Seeber on 7/11/17.
+  * Edited by Anthony Abercrombie on 7/18/17.
   */
 import java.util
 import java.util.Properties
@@ -51,10 +53,15 @@ object KafkaCassandra{
   }
 
   def main(args: Array[String]): Unit = {
-
+    // SETUP CONSUMER THAT WILL SUBSCRIBE TO THE plume_pollution TOPIC
+    // ON THE KAFKA CLUSTER datastax-enterprise-5
     val TOPIC = "plume_pollution"
     val props = new Properties()
-    props.put("bootstrap.servers", "localhost:9092")
+    // Specify the Zookeeper ports of each of the instances in the Kafka cluster
+    // Only one Zookeper IP:port is needed, providing a list just in case one instance goes down
+    props.put("zoookeeper.connect", "35.190.179.65:2181,35.185.26.73:2181,35.190.148.28:2181")
+    // Specify the Broker ports of each instance. Assumes that there is one broker on each port
+    props.put("bootstrap.servers", "35.190.179.65:9092,35.185.26.73:9092,35.190.148.28:9092")
     props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer")
     props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer")
     props.put("group.id", "something")
@@ -62,6 +69,7 @@ object KafkaCassandra{
     val consumer = new KafkaConsumer[String, String](props)
     consumer.subscribe(util.Collections.singletonList(TOPIC))
 
+    // CREATE CASSANDRA CLUSTER SESSION
     implicit val session = new Cluster
     .Builder()
       .addContactPoints("localhost")
@@ -69,10 +77,14 @@ object KafkaCassandra{
       .build()
       .connect()
 
+    // CREATE UDT AND ROOT CASSANDRA TABLE
     val create_type = s"CREATE TYPE IF NOT EXISTS plume.pollution_data (" +
       s"value_upm float, pi float, aqi float, aqi_cn float)"
+
+    // Had issues with timestamp as a double.
+    // After looking at an example "timestamp":1499047200" bigint seems more appropriate
     val create_table = s"CREATE TABLE IF NOT EXISTS plume.pollution_data_by_lat_lon (" +
-      s"latitude double, longitude double, timestamp double, pm_data frozen <pollution_data>," +
+      s"latitude double, longitude double, timestamp bigint, pm_data frozen <pollution_data>," +
       s"nitrous_data frozen <pollution_data>, pm_data_ten frozen <pollution_data>," +
       s"pm_data_twenty_five frozen <pollution_data>, ozone_data frozen <pollution_data>," +
       s"overall_data frozen <pollution_data>, primary key ((latitude, longitude), timestamp)" +
@@ -88,6 +100,11 @@ object KafkaCassandra{
         val latitude = result_tuple._1
         val longitude = result_tuple._2
         val timestamp = result_tuple._3
+
+        // TESTING KAFKA CONSUMER-PRODUCER CONNECTION
+        println(latitude)
+        println(longitude)
+        println(timestamp)
 
         // Parse the Maps that come out of the JSON into the proper format for Cassandra insertion
         val pm_data = buildCassandraUdtFromMap(result_tuple._4)
@@ -107,10 +124,5 @@ object KafkaCassandra{
 
       }
     }
-
-
   }
-
-
-
 }
