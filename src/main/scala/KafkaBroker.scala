@@ -1,5 +1,5 @@
 import java.util.Properties
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, Callback, RecordMetadata}
 import scala.io._
 import akka.actor._
 import akka.routing.BalancingPool
@@ -109,7 +109,6 @@ object KafkaBroker extends App {
     //    props.put("linger.ms", new Integer(1))
     //    props.put("buffer.memory", new Integer(133554432))
 
-    // TODO: implement ProducerCallback()
 
     new KafkaProducer[String, String](props)
 
@@ -147,16 +146,9 @@ object KafkaBroker extends App {
       ).mkString
 
       val producerRecord = new ProducerRecord[String, String](topic, response)
-      val recordMetadata = producer.send(producerRecord)
+      val recordMetadata = producer.send(producerRecord, new ProducerCallback)
 
-      val meta = recordMetadata.get() // I could use this to write some tests
-      val msgLog =
-        s"""
-           |topic     = ${meta.topic()}
-           |offset    = ${meta.offset()}
-           |partition = ${meta.partition()}
-          """.stripMargin
-      println(msgLog)
+//      val meta = recordMetadata.get()
 
       producer.close()
 
@@ -167,5 +159,26 @@ object KafkaBroker extends App {
 
 
   } // end of startIngestion
+
+  class ProducerCallback extends Callback {
+
+    override def onCompletion(recordMetadata: RecordMetadata, ex: Exception): Unit = {
+      if (ex != null) {
+        println(ex)
+      }
+      else {
+        // what was done in startingestion
+        val meta = recordMetadata
+        val msgLog =
+          s"""
+             |topic     = ${recordMetadata.topic()}
+             |offset    = ${recordMetadata.offset()}
+             |partition = ${recordMetadata.partition()}
+            """.stripMargin
+        println(msgLog)
+      } // end of else
+    } // end of onCompletion
+
+  } // end of class
 
 } // end of KafkaBroker object
